@@ -1,0 +1,5 @@
+carla @ file:///C:/Users/User/Desktop/carla-0.10.0-cp312-cp312-win_amd64.whl
+numpy==2.5.2
+opencv-python==5.0.0.93
+pillow==12.3.0
+pygame==2.6.1
