@@ -104,8 +104,8 @@ class CarlaSimulationManager:
                 action, args = command
                 if action == "spawn_traffic":
                     self.traffic_module.spawn_traffic(args['vehicles'], args['walkers'])
-                    print("Spawned Vehicle IDs:")
-                    print([v.id for v in self.world.get_actors().filter('vehicle.*')])
+                    # print("Spawned Vehicle IDs:")
+                    # print([v.id for v in self.world.get_actors().filter('vehicle.*')])
                 elif action == "start_sem":
                     self.spawn_sem_camera(show=args.get('show', False))
                     if args.get('bbox'):

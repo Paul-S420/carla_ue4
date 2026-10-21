@@ -27,6 +27,10 @@ PALETTE[14] = [142/255, 0/255, 0/255]     # Car
 PALETTE[15] = [70/255, 0/255, 0/255] # Truck
 PALETTE[16] = [100/255, 60/255, 0/255] # Bus
 
+FILTER = np.zeros((3, 3))
+FILTER[0] = [0/255,0/255,150/255]
+FILTER[1] = [255/255,255/255,0/255]
+
 def get_latest_session_dir(base_dir=DATA_DIR):
     if not os.path.exists(base_dir):
         return None
@@ -44,11 +48,22 @@ def load_frame_data(path):
     # Safely extract property names native to the plyfile library
     prop_names = [p.name for p in v.properties]
     
-    if 'ObjTag' in prop_names:
-        tags = v['ObjTag'].astype(np.int32)
-        # Cap tags at 29 to prevent index errors on the palette array
-        safe_tags = np.clip(tags, 0, 29)
-        colors = PALETTE[safe_tags]
+    # if 'ObjTag' in prop_names:
+    #     tags = v['ObjTag'].astype(np.int32)
+    #     # Cap tags at 29 to prevent index errors on the palette array
+    #     safe_tags = np.clip(tags, 0, 29)
+    #     colors = PALETTE[safe_tags]
+
+    # if "ObjIdx" in prop_names and "ObjTag" in prop_names:
+    #     tags = v['ObjTag'].astype(np.int32)
+    #     safe_tags = np.clip(tags, 0, 255)
+    #     ids = v['ObjIdx'].astype(np.int32)
+    #     colors = [(tag/255, (id%255)/255, id//255/255) for tag, id in zip(tags,ids)]
+    
+    if 'ObjIdx' in prop_names:
+        ids = v['ObjIdx'].astype(np.int32)
+        safe_ids = [1 if id != 0 else 0 for id in ids]
+        colors = FILTER[safe_ids]
     else:
         # Fallback to white if no semantic tags are found
         colors = np.full((len(points), 3), [1.0, 1.0, 1.0])

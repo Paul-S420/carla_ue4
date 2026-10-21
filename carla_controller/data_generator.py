@@ -43,7 +43,7 @@ class DataGenerator:
         if not spawn_point:
             spawn_point = random.choice(self.world.get_map().get_spawn_points())
 
-        vehicle_bp = self.blueprint_library.filter("vehicle.dodgecop.charger")[0]
+        vehicle_bp = self.blueprint_library.filter("vehicle.dodge.charger_police")[0]
         self.ego_vehicle = self.world.spawn_actor(vehicle_bp, spawn_point)
         self.ego_vehicle.set_autopilot(True)
 
