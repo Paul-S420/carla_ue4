@@ -1,4 +1,4 @@
-# carla @ file:///C:/Users/User/Desktop/carla-0.10.0-cp312-cp312-win_amd64.whl
+# carla @ file:C:\Users\User\Personal_Docs\Studium\master\IFL_HiWi\CARLA\carla_ue4\PythonAPI\carla\dist\carla-0.9.16-cp312-cp312-win_amd64.whl
 numpy==2.5.2
 opencv-python==5.0.0.93
 pillow==12.3.0
