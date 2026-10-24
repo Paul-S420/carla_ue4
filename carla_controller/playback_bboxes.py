@@ -27,6 +27,45 @@ CITYSCAPES_PALETTE = {
     17: ("Train", (100, 80, 0)),
     18: ("Motorcycle", (230, 0, 0)),
     19: ("Bicycle", (32, 11, 119)),
+    20: ("Static", (160, 190, 110)),
+    21: ("Dynamic", (50, 120, 170)),
+    22: ("Other", (80, 90, 55)),
+    23: ("Water", (150, 60, 45)),
+    24: ("RoadLine", (50, 234, 157)),
+    25: ("Ground", (81, 0, 81)),
+    26: ("Bridge", (100, 100, 150)),
+    27: ("RailTrack", (140, 150, 230)),
+    28: ("GuardRail", (180, 165, 180)),
+}
+target_classes={
+    # 1, # road
+    # 2,
+    # 3,
+    # 4,
+    # 5,
+    # 6, # pole
+    7,
+    8,
+    # 9, # vegetation
+    10,
+    # 11, # sky
+    12, # pedestrian
+    13, # rider
+    14, # car
+    15, # truck
+    16, # bus
+    17,
+    18,
+    19, # bicycle
+    # 20,
+    # 21,
+    # 22,
+    # 23,
+    # 24,
+    # 25,
+    # 26,
+    # 27,
+    # 28,
 }
 
 # conversion to BGR Format
@@ -44,7 +83,9 @@ def get_latest_session_dir(base_dir=DATA_DIR):
 
 
 def find_image_directory(session_dir):
-    candidates = ["_out_rgb", "_out_semantic_segmentation", "_out_instance_segmentation"]
+    # candidates = ["_out_rgb", "_out_semantic_segmentation", "_out_instance_segmentation"] # show rgb images
+    candidates = ["_out_semantic_segmentation", "_out_instance_segmentation", "_out_rgb"]  # show semandtic segmentation
+    # candidates = ["_out_instance_segmentation","_out_rgb", "_out_semantic_segmentation"] # show instance segmentation
     for candidate in candidates:
         full_path = os.path.join(session_dir, candidate)
         if os.path.exists(full_path):
@@ -60,16 +101,8 @@ def draw_bounding_box(img, box_data):
         if not coords:
             print("Format error")
             return
-            # coords = [
-            #     box_data.get("x_min", box_data.get("min_x")),
-            #     box_data.get("y_min", box_data.get("min_y")),
-            #     box_data.get("x_max", box_data.get("max_x")),
-            #     box_data.get("y_max", box_data.get("max_y")),
-            # ]
         class_id = box_data.get("class_id", box_data.get("class", 0))
-    elif isinstance(box_data, (list, tuple)) and len(box_data) >= 4:
-        coords = box_data[:4]
-        class_id = box_data[4] if len(box_data) > 4 else 0
+        if class_id not in target_classes: return
     else:
         return
 

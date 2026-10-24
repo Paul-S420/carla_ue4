@@ -10,11 +10,10 @@ from plyfile import PlyData
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "data")
 
-# CityScapes Palette (Normalized to 0.0 - 1.0 for Open3D)
 PALETTE = np.zeros((30, 3))
 PALETTE[1] = [128/255, 64/255, 128/255]   # Road
 PALETTE[2] = [232/255, 35/255, 244/255]   # Sidewalk
-PALETTE[3] = [70/255, 70/255, 70/255]     # Building
+PALETTE[3] = [70/255, 70/255, 70/255]    # Building
 PALETTE[4] = [156/255, 102/255, 102/255]  # Wall
 PALETTE[5] = [153/255, 153/255, 190/255]  # Fence
 PALETTE[6] = [153/255, 153/255, 153/255]  # Pole
@@ -24,10 +23,22 @@ PALETTE[9] = [35/255, 142/255, 107/255]   # Vegetation
 PALETTE[10] = [152/255, 251/255, 152/255] # Terrain
 PALETTE[11] = [180/255, 130/255, 70/255]  # Sky
 PALETTE[12] = [60/255, 20/255, 220/255]   # Pedestrian
+PALETTE[13] = [0/255, 0/255, 255/255]    # Rider
 PALETTE[14] = [142/255, 0/255, 0/255]     # Car
-PALETTE[15] = [70/255, 0/255, 0/255]      # Truck
+PALETTE[15] = [70/255, 0/255, 0/255]     # Truck
 PALETTE[16] = [100/255, 60/255, 0/255]    # Bus
-PALETTE[24] = [50/255, 234/255, 157/255]  # Road Markings
+PALETTE[17] = [100/255, 80/255, 0/255]    # Train
+PALETTE[18] = [230/255, 0/255, 0/255]    # Motorcycle
+PALETTE[19] = [32/255, 11/255, 119/255]   # Bicycle
+PALETTE[20] = [160/255, 190/255, 110/255] # Static
+PALETTE[21] = [50/255, 120/255, 170/255]  # Dynamic
+PALETTE[22] = [80/255, 90/255, 55/255]    # Other
+PALETTE[23] = [150/255, 60/255, 45/255]   # Water
+PALETTE[24] = [50/255, 234/255, 157/255]  # RoadLine
+PALETTE[25] = [81/255, 0/255, 81/255]     # Ground
+PALETTE[26] = [100/255, 100/255, 150/255] # Bridge
+PALETTE[27] = [140/255, 150/255, 230/255] # RailTrack
+PALETTE[28] = [180/255, 165/255, 180/255] # GuardRail
 
 RGB_PALETTE = np.zeros((30,3))
 for i in range(30):
@@ -61,11 +72,18 @@ def load_frame_data(path):
     # Safely extract property names native to the plyfile library
     prop_names = [p.name for p in v.properties]
     
-    # if 'ObjTag' in prop_names:  # color LIDAR cloud like semseg
+    if 'ObjTag' in prop_names:  # color LIDAR cloud like semseg
+        tags = v['ObjTag'].astype(np.int32)
+        # Cap tags at 29 to prevent index errors on the palette array
+        safe_tags = np.clip(tags, 0, 29)
+        colors = RGB_PALETTE[safe_tags]
+
+    # if 'ObjTag' in prop_names and 'ObjIdx' in prop_names:
     #     tags = v['ObjTag'].astype(np.int32)
-    #     # Cap tags at 29 to prevent index errors on the palette array
-    #     safe_tags = np.clip(tags, 0, 29)
-    #     colors = RGB_PALETTE[safe_tags]
+    #     ids = v['ObjIdx'].astype(np.int32)
+    #     mask = (tags == 12) #& (ids == 0)
+    #     safe_ids = np.where(mask, 1, 0)
+    #     colors = FILTER[safe_ids]
 
     # if "ObjIdx" in prop_names and "ObjTag" in prop_names: # color LIDAR cloud like Inst Seg (only works for actors)
     #     tags = v['ObjTag'].astype(np.int32)
@@ -73,10 +91,11 @@ def load_frame_data(path):
     #     ids = v['ObjIdx'].astype(np.int32)
     #     colors = [(tag/255, (id%255)/255, id//255/255) for tag, id in zip(tags,ids)]
     
-    if 'ObjIdx' in prop_names: # color LIDAR cloud based on ObjIdx/instance ID
-        ids = v['ObjIdx'].astype(np.int32)
-        safe_ids = np.where(ids == 146, 1, 0)
-        colors = FILTER[safe_ids]
+    # if 'ObjIdx' in prop_names: # color LIDAR cloud based on ObjIdx/instance ID
+    #     ids = v['ObjIdx'].astype(np.int32)
+    #     safe_ids = np.where(ids == 146, 1, 0)
+    #     colors = FILTER[safe_ids]
+
     else:
         # Fallback to white if no semantic tags are found
         colors = np.full((len(points), 3), [1.0, 1.0, 1.0])
