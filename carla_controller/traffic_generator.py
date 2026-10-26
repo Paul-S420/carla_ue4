@@ -110,6 +110,13 @@ class TrafficGenerator:
             controller.start()
             controller.go_to_location(self.world.get_random_location_from_navigation())
             controller.set_max_speed(active_walker_speeds[i])
+
+        # try to fix invisible pedestrians bug for LIDAR
+        all_actors = self.world.get_actors()
+        for actor in all_actors:
+            if "walker.pedestrian." in actor.type_id:
+                actor.set_collisions(True)
+                actor.set_simulate_physics(True)
             
         print(f"Spawned {len(self.walker_ids)} pedestrians.")
 

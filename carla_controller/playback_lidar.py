@@ -72,18 +72,18 @@ def load_frame_data(path):
     # Safely extract property names native to the plyfile library
     prop_names = [p.name for p in v.properties]
     
-    if 'ObjTag' in prop_names:  # color LIDAR cloud like semseg
-        tags = v['ObjTag'].astype(np.int32)
-        # Cap tags at 29 to prevent index errors on the palette array
-        safe_tags = np.clip(tags, 0, 29)
-        colors = RGB_PALETTE[safe_tags]
-
-    # if 'ObjTag' in prop_names and 'ObjIdx' in prop_names:
+    # if 'ObjTag' in prop_names:  # color LIDAR cloud like semseg
     #     tags = v['ObjTag'].astype(np.int32)
-    #     ids = v['ObjIdx'].astype(np.int32)
-    #     mask = (tags == 12) #& (ids == 0)
-    #     safe_ids = np.where(mask, 1, 0)
-    #     colors = FILTER[safe_ids]
+    #     # Cap tags at 29 to prevent index errors on the palette array
+    #     safe_tags = np.clip(tags, 0, 29)
+    #     colors = RGB_PALETTE[safe_tags]
+
+    if 'ObjTag' in prop_names and 'ObjIdx' in prop_names:
+        tags = v['ObjTag'].astype(np.int32)
+        ids = v['ObjIdx'].astype(np.int32)
+        mask = (tags == 12) #& (ids == 0)
+        safe_ids = np.where(mask, 1, 0)
+        colors = FILTER[safe_ids]
 
     # if "ObjIdx" in prop_names and "ObjTag" in prop_names: # color LIDAR cloud like Inst Seg (only works for actors)
     #     tags = v['ObjTag'].astype(np.int32)

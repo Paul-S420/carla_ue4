@@ -44,19 +44,19 @@ target_classes={
     # 4,
     # 5,
     # 6, # pole
-    7,
-    8,
-    # 9, # vegetation
-    10,
+    # 7,
+    # 8,
+    # # 9, # vegetation
+    # 10,
     # 11, # sky
     12, # pedestrian
-    13, # rider
-    14, # car
-    15, # truck
-    16, # bus
-    17,
-    18,
-    19, # bicycle
+    # 13, # rider
+    # 14, # car
+    # 15, # truck
+    # 16, # bus
+    # 17,
+    # 18,
+    # 19, # bicycle
     # 20,
     # 21,
     # 22,
@@ -83,8 +83,8 @@ def get_latest_session_dir(base_dir=DATA_DIR):
 
 
 def find_image_directory(session_dir):
-    # candidates = ["_out_rgb", "_out_semantic_segmentation", "_out_instance_segmentation"] # show rgb images
-    candidates = ["_out_semantic_segmentation", "_out_instance_segmentation", "_out_rgb"]  # show semandtic segmentation
+    candidates = ["_out_rgb", "_out_semantic_segmentation", "_out_instance_segmentation"] # show rgb images
+    # candidates = ["_out_semantic_segmentation", "_out_instance_segmentation", "_out_rgb"]  # show semandtic segmentation
     # candidates = ["_out_instance_segmentation","_out_rgb", "_out_semantic_segmentation"] # show instance segmentation
     for candidate in candidates:
         full_path = os.path.join(session_dir, candidate)
@@ -101,7 +101,7 @@ def draw_bounding_box(img, box_data):
         if not coords:
             print("Format error")
             return
-        class_id = box_data.get("class_id", box_data.get("class", 0))
+        class_id = box_data.get("class", 0)
         if class_id not in target_classes: return
     else:
         return
