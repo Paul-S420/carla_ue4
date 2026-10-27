@@ -10,11 +10,11 @@ world = client.get_world()
 # Initialize Pygame and Font
 pygame.init()
 pygame.font.init()
-width, height = int(1280 * 1.5), int(720 * 1.5)
+width, height = int(1280), int(720)
 display = pygame.display.set_mode((width, height))
 pygame.display.set_caption("CARLA Remote Free Camera - Multi-Modality")
 
-font = pygame.font.SysFont(None, 40)
+font = pygame.font.SysFont(None, 20)
 
 # Tag names
 TAG_NAMES = {

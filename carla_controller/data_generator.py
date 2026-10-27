@@ -72,6 +72,8 @@ class DataGenerator:
                 sensor_bp.set_attribute('range', '50.0')
                 sensor_bp.set_attribute('points_per_second', '100000')
                 sensor_bp.set_attribute('rotation_frequency', '20')
+                # sensor_bp.set_attribute('upper_fov', '20.0') # default 10.0, changed to view traffic lights
+                # sensor_bp.set_attribute('lower_fov', '-20') # default -30.0, changed to view traffic lights
                 
                 sensor_transform = carla.Transform(carla.Location(x=1.5, z=2.6))
             else:

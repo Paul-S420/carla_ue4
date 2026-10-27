@@ -78,12 +78,12 @@ def load_frame_data(path):
     #     safe_tags = np.clip(tags, 0, 29)
     #     colors = RGB_PALETTE[safe_tags]
 
-    if 'ObjTag' in prop_names and 'ObjIdx' in prop_names:
-        tags = v['ObjTag'].astype(np.int32)
-        ids = v['ObjIdx'].astype(np.int32)
-        mask = (tags == 12) #& (ids == 0)
-        safe_ids = np.where(mask, 1, 0)
-        colors = FILTER[safe_ids]
+    # if 'ObjTag' in prop_names and 'ObjIdx' in prop_names:
+    #     tags = v['ObjTag'].astype(np.int32)
+    #     ids = v['ObjIdx'].astype(np.int32)
+    #     mask = (tags == 18) #& (ids == 0)
+    #     safe_ids = np.where(mask, 1, 0)
+    #     colors = FILTER[safe_ids]
 
     # if "ObjIdx" in prop_names and "ObjTag" in prop_names: # color LIDAR cloud like Inst Seg (only works for actors)
     #     tags = v['ObjTag'].astype(np.int32)
@@ -91,10 +91,10 @@ def load_frame_data(path):
     #     ids = v['ObjIdx'].astype(np.int32)
     #     colors = [(tag/255, (id%255)/255, id//255/255) for tag, id in zip(tags,ids)]
     
-    # if 'ObjIdx' in prop_names: # color LIDAR cloud based on ObjIdx/instance ID
-    #     ids = v['ObjIdx'].astype(np.int32)
-    #     safe_ids = np.where(ids == 146, 1, 0)
-    #     colors = FILTER[safe_ids]
+    if 'ObjIdx' in prop_names: # color LIDAR cloud based on ObjIdx/instance ID
+        ids = v['ObjIdx'].astype(np.int32)
+        safe_ids = np.where(ids != 0, 1, 0)
+        colors = FILTER[safe_ids]
 
     else:
         # Fallback to white if no semantic tags are found
