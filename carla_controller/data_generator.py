@@ -23,14 +23,12 @@ class DataGenerator:
         self.frame_buffer = {}
         
         self.active_modalities = []
-        self.active_annotations = [] # Track virtual modalities like bbox
         self.output_dirs = {}
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
 
         self.current_session_dir = None
 
     def _setup_output_dir(self, modality_name):
-        # Generate a new timestamp folder only if a session hasn't started yet
         if self.current_session_dir is None:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             self.current_session_dir = os.path.join(self.script_dir, "data", timestamp)
@@ -43,57 +41,53 @@ class DataGenerator:
         if not spawn_point:
             spawn_point = random.choice(self.world.get_map().get_spawn_points())
 
+        # Preserved from your older script: original police charger blueprint
         vehicle_bp = self.blueprint_library.filter("vehicle.dodge.charger_police")[0]
         self.ego_vehicle = self.world.spawn_actor(vehicle_bp, spawn_point)
         self.ego_vehicle.set_autopilot(True)
 
     def spawn_sensor(self, sensor_type):
-        """Universally handles spawning for cameras and LiDAR."""
+        """Universally handles spawning for cameras and LiDAR, permanently ensuring instance segmentation and bboxes are active."""
         if self.ego_vehicle is None:
             print("Error: Spawn ego vehicle first.")
             return
 
-        modality = sensor_type
-        if modality not in self.active_modalities:
-            self.active_modalities.append(modality)
-            self._setup_output_dir(modality)
-
-        if modality == 'lidar':
-            sensor_bp = self.blueprint_library.find('sensor.lidar.ray_cast_semantic')
-            sensor_bp.set_attribute('channels', '32')
-            sensor_bp.set_attribute('range', '50.0')
-            sensor_bp.set_attribute('points_per_second', '100000')
-            sensor_bp.set_attribute('rotation_frequency', '20')
-            
-            # Mount LiDAR slightly higher on the roof
-            sensor_transform = carla.Transform(carla.Location(x=1.5, z=2.6))
-        else:
-            sensor_bp = self.blueprint_library.find('sensor.camera.' + modality)
-            sensor_bp.set_attribute('image_size_x', image_size_x)
-            sensor_bp.set_attribute('image_size_y', image_size_y)
-            sensor_bp.set_attribute('fov', fov)
-            
-            sensor_transform = carla.Transform(carla.Location(x=1.5, z=2.4))
+        # Ensure instance segmentation is always spawned alongside any sensor to support permanent bounding boxes
+        modalities_to_spawn = [sensor_type]
+        if sensor_type != "instance_segmentation" and "instance_segmentation" not in self.active_modalities:
+            modalities_to_spawn.append("instance_segmentation")
         
-        sensor = self.world.spawn_actor(sensor_bp, sensor_transform, attach_to=self.ego_vehicle)
-            
-        weak_self = weakref.ref(self)
-        sensor.listen(lambda data: DataGenerator._sensor_callback(weak_self, data, modality))
-        self.sensors.append(sensor)
-
-    def spawn_bbox_modality(self):
-        """Activates bounding box collection."""
-        if self.ego_vehicle is None:
-            print("Error: Spawn ego vehicle first.")
-            return
-        if "bbox" not in self.active_annotations:
-            self.active_annotations.append("bbox")
+        # Ensure bbox output directory is initialized permanently
+        if "bbox" not in self.output_dirs:
             self._setup_output_dir("bbox")
+
+        for modality in modalities_to_spawn:
+            if modality not in self.active_modalities:
+                self.active_modalities.append(modality)
+                self._setup_output_dir(modality)
+
+            if modality == 'lidar':
+                sensor_bp = self.blueprint_library.find('sensor.lidar.ray_cast_semantic')
+                sensor_bp.set_attribute('channels', '32')
+                sensor_bp.set_attribute('range', '50.0')
+                sensor_bp.set_attribute('points_per_second', '100000')
+                sensor_bp.set_attribute('rotation_frequency', '20')
+                
+                sensor_transform = carla.Transform(carla.Location(x=1.5, z=2.6))
+            else:
+                sensor_bp = self.blueprint_library.find('sensor.camera.' + modality)
+                sensor_bp.set_attribute('image_size_x', image_size_x)
+                sensor_bp.set_attribute('image_size_y', image_size_y)
+                sensor_bp.set_attribute('fov', fov)
+                
+                sensor_transform = carla.Transform(carla.Location(x=1.5, z=2.4))
             
-            # HYBRID REQUIREMENT: Instance segmentation is strictly required
-            if "instance_segmentation" not in self.active_modalities:
-                self.spawn_sensor("instance_segmentation")
-            
+            sensor = self.world.spawn_actor(sensor_bp, sensor_transform, attach_to=self.ego_vehicle)
+                
+            weak_self = weakref.ref(self)
+            sensor.listen(lambda data, m=modality: DataGenerator._sensor_callback(weak_self, data, m))
+            self.sensors.append(sensor)
+
     @staticmethod
     def _sensor_callback(weak_self, image, sensor_name):
         self = weak_self()
@@ -103,7 +97,7 @@ class DataGenerator:
         self.image_queue.put((image.frame, sensor_name, image))
 
     def process_data(self):
-        """Called every tick. Saves data and returns the latest synced frame for visualization."""
+        """Called every tick. Saves data and returns the latest synced frame."""
         if not self.active_modalities:
             return None
 
@@ -132,26 +126,21 @@ class DataGenerator:
                 if "instance_segmentation" in self.frame_buffer[frame]:
                     ins_image = self.frame_buffer[frame]["instance_segmentation"]
                     ins_image.save_to_disk(f"{self.output_dirs['instance_segmentation']}/{frame:06d}.png")
+                    
+                    # Bounding boxes are permanently enabled and generated from instance segmentation
+                    bboxes = get_mask_bounding_boxes(ins_image)
+                    with open(f"{self.output_dirs['bbox']}/{frame:06d}.json", "w") as f:
+                        json.dump({"frame": frame, "boxes": bboxes}, f)
 
                 if "lidar" in self.frame_buffer[frame]:
                     lidar_data = self.frame_buffer[frame]["lidar"]
                     lidar_data.save_to_disk(f"{self.output_dirs['lidar']}/{frame:06d}.ply")
-
-                if "bbox" in self.active_annotations:
-                    if "instance_segmentation" in self.frame_buffer[frame]:
-                        ins_image = self.frame_buffer[frame]["instance_segmentation"]
-                        
-                        # Generate boxes purely from the image data
-                        bboxes = get_mask_bounding_boxes(ins_image)
-                        
-                        with open(f"{self.output_dirs['bbox']}/{frame:06d}.json", "w") as f:
-                            json.dump({"frame": frame, "boxes": bboxes}, f)
                 
                 # CACHE THE FRAME DATA BEFORE DELETION
                 latest_synced_frame = self.frame_buffer[frame].copy()
                 del self.frame_buffer[frame]
 
-        # Prevent memory leak
+        # Prevent memory leak (fixed line break bug)
         if current_frame is not None:
             stale_frames = [f for f in self.frame_buffer.keys() if f < current_frame - 10]
             for f in stale_frames:
@@ -181,5 +170,3 @@ class DataGenerator:
         # Reset the session directory so the next start creates a new timestamp folder
         self.current_session_dir = None
         self.output_dirs.clear()
-
-        self.active_annotations.clear()

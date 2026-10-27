@@ -3,6 +3,7 @@ import json
 import os
 import glob
 import sys
+import argparse
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "data")
@@ -37,7 +38,8 @@ CITYSCAPES_PALETTE = {
     27: ("RailTrack", (140, 150, 230)),
     28: ("GuardRail", (180, 165, 180)),
 }
-target_classes={
+
+TARGET_CLASSES={
     # 1, # road
     # 2,
     # 3,
@@ -46,7 +48,7 @@ target_classes={
     # 6, # pole
     # 7,
     # 8,
-    # # 9, # vegetation
+    # 9, # vegetation
     # 10,
     # 11, # sky
     12, # pedestrian
@@ -82,10 +84,14 @@ def get_latest_session_dir(base_dir=DATA_DIR):
     return max(subfolders, key=os.path.getmtime)
 
 
-def find_image_directory(session_dir):
-    candidates = ["_out_rgb", "_out_semantic_segmentation", "_out_instance_segmentation"] # show rgb images
-    # candidates = ["_out_semantic_segmentation", "_out_instance_segmentation", "_out_rgb"]  # show semandtic segmentation
-    # candidates = ["_out_instance_segmentation","_out_rgb", "_out_semantic_segmentation"] # show instance segmentation
+def find_image_directory(session_dir, modality):
+    match modality:
+        case "rgb":
+            candidates = ["_out_rgb", "_out_semantic_segmentation", "_out_instance_segmentation"] # show rgb images
+        case "sem":
+            candidates = ["_out_semantic_segmentation", "_out_instance_segmentation", "_out_rgb"]  # show semandtic segmentation
+        case "ins":
+            candidates = ["_out_instance_segmentation","_out_rgb", "_out_semantic_segmentation"] # show instance segmentation
     for candidate in candidates:
         full_path = os.path.join(session_dir, candidate)
         if os.path.exists(full_path):
@@ -95,14 +101,15 @@ def find_image_directory(session_dir):
     return None
 
 
-def draw_bounding_box(img, box_data):
+def draw_bounding_box(img, box_data, classes):
     if isinstance(box_data, dict):
         coords = box_data.get("bbox") # or box_data.get("coords")
         if not coords:
             print("Format error")
             return
+        
         class_id = box_data.get("class", 0)
-        if class_id not in target_classes: return
+        if class_id not in classes: return
     else:
         return
 
@@ -119,16 +126,21 @@ def draw_bounding_box(img, box_data):
     cv2.putText(img, text, (x_min + 1, text_y - 1), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
 
 
-def main(session_dir=None):
+def main(session_dir=None, modality="rgb", tags = None):
     if session_dir is None:
         session_dir = get_latest_session_dir()
         if session_dir is None:
             print(f"Error: No data sessions found in {DATA_DIR}")
             sys.exit(1)
+    else:
+        session_dir = os.path.join(DATA_DIR, session_dir)
+        if not os.path.exists(session_dir):
+            print(f"Error: Invalid path: {session_dir}")
+            sys.exit(1)
 
     print(f"Loading session: {session_dir}")
 
-    image_dir = find_image_directory(session_dir)
+    image_dir = find_image_directory(session_dir, modality)
     if not image_dir:
         print("Error: No image directory (_out_rgb, _out_semantic_segmentation, etc.) found with PNG files.")
         sys.exit(1)
@@ -169,7 +181,7 @@ def main(session_dir=None):
                     with open(json_path, "r") as f:
                         boxes = json.load(f)
                     for box in boxes["boxes"]:
-                        draw_bounding_box(img, box)
+                        draw_bounding_box(img, box, classes = tags if tags else TARGET_CLASSES)
                 except Exception as e:
                     print(f"Warning: Failed reading {json_path}: {e}")
 
@@ -200,7 +212,10 @@ def main(session_dir=None):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        main(sys.argv[1])
-    else:
-        main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--session", help="name (or path?) of session directory", default=None)
+    parser.add_argument("-m", "--modality", help="modality to be shown. Options: rgb, sem or ins", choices=["rgb", "sem", "ins"], default="rgb")
+    parser.add_argument("-t", "--tags", help="tags of bounding boxes to be displayed", type=int, nargs="+", default=None)
+    args = parser.parse_args()
+
+    main(session_dir=args.session, modality=args.modality, tags=args.tags)

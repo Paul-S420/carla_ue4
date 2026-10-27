@@ -1,7 +1,4 @@
-import os
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import carla
-import pygame
 import threading
 import cmd
 import sys
@@ -10,7 +7,6 @@ import time
 
 from data_generator import DataGenerator
 from traffic_generator import TrafficGenerator
-from visualizer import DisplayManager
 from environment_manager import Environment_manager
 
 host_ip = 'urban1.ifl.kit.edu'
@@ -25,7 +21,7 @@ class CarlaSimulationManager:
         self.running = True
         self.ego_spawned = False
 
-        #Initialize Traffic Manager
+        # Initialize Traffic Manager
         self.traffic_manager = self.client.get_trafficmanager(8000)
         
         # Centralized Synchronization Setup
@@ -38,15 +34,11 @@ class CarlaSimulationManager:
         # Synchronize Traffic Manager with the server
         self.traffic_manager.set_synchronous_mode(True)
         
-        # Initialize the data collection module and command queue
+        # Initialize modules and command queue
         self.data_module = DataGenerator(self.world)
         self.traffic_module = TrafficGenerator(self.client, self.world, self.traffic_manager)
         self.environment_module = Environment_manager(world=self.world)
         self.command_queue = queue.Queue()
-
-        # Display Variables
-        self.display_manager = None
-        self.show_display = False
 
         # Performance Tracking Variables
         self.is_recording = False
@@ -59,80 +51,58 @@ class CarlaSimulationManager:
             self.real_start_time = time.time()
             self.tick_count = 0
 
-    def spawn_sem_camera(self, show=False):
+    def _ensure_ego_active(self):
         self._start_recording_timer()
         if not self.ego_spawned:
             self.data_module.spawn_ego_vehicle()
             self.ego_spawned = True
+
+    def spawn_sem_camera(self):
+        self._ensure_ego_active()
         self.data_module.spawn_sensor(sensor_type="semantic_segmentation")
-        self.show_display = self.show_display or show
         print("Semantic camera initialized.")
 
-    def spawn_rgb_camera(self, show=False):
-        self._start_recording_timer()
-        if not self.ego_spawned:
-            self.data_module.spawn_ego_vehicle()
-            self.ego_spawned = True
+    def spawn_rgb_camera(self):
+        self._ensure_ego_active()
         self.data_module.spawn_sensor(sensor_type="rgb")
-        self.show_display = self.show_display or show
         print("RGB camera initialized.")
 
-    def spawn_ins_camera(self, show=False):
-        self._start_recording_timer()
-        if not self.ego_spawned:
-            self.data_module.spawn_ego_vehicle()
-            self.ego_spawned = True
+    def spawn_ins_camera(self):
+        self._ensure_ego_active()
         self.data_module.spawn_sensor(sensor_type="instance_segmentation")
-        self.show_display = self.show_display or show
         print("Instance segmentation camera initialized.")
 
-    def spawn_lidar_sensor(self, show=False):
-        self._start_recording_timer()
-        if not self.ego_spawned:
-            self.data_module.spawn_ego_vehicle()
-            self.ego_spawned = True
+    def spawn_lidar_sensor(self):
+        self._ensure_ego_active()
         self.data_module.spawn_sensor('lidar')
         print("LiDAR sensor initialized.")
-
 
     def process_commands(self):
         while not self.command_queue.empty():
             command = self.command_queue.get()
             
-            # 1. Handle Tuple commands (for CLI arguments)
+            # 1. Handle Tuple commands (for traffic and weather args)
             if isinstance(command, tuple):
                 action, args = command
                 if action == "spawn_traffic":
                     self.traffic_module.spawn_traffic(args['vehicles'], args['walkers'])
-                    # print("Spawned Vehicle IDs:")
-                    # print([v.id for v in self.world.get_actors().filter('vehicle.*')])
-                elif action == "start_sem":
-                    self.spawn_sem_camera(show=args.get('show', False))
-                    if args.get('bbox'):
-                        self.data_module.spawn_bbox_modality()
-                elif action == "start_rgb":
-                    self.spawn_rgb_camera(show=args.get('show', False))
-                    if args.get('bbox'):
-                        self.data_module.spawn_bbox_modality()
-                elif action == "start_ins":
-                    self.spawn_ins_camera(show=args.get('show', False))
-                    if args.get('bbox'):
-                        self.data_module.spawn_bbox_modality()
-                elif action == "start_lidar":
-                    self.spawn_lidar_sensor(show=args.get('show', False))
-                    if args.get('bbox'):
-                        self.data_module.spawn_bbox_modality()
-                    print("LiDAR recording initialized.")
                 elif action == "set_weather":
                     hour = args.get("hour", 12)
                     minute = args.get("minute", 0)
                     self.environment_module.set_weather(hour, minute)
                     print(f"set time to {hour}:{minute}")
 
-            
             # 2. Handle simple string commands
             else:
-                if command == "clear_traffic":
+                if command == "start_sem":
+                    self.spawn_sem_camera()
+                elif command == "start_rgb":
+                    self.spawn_rgb_camera()
+                elif command == "start_ins":
+                    self.spawn_ins_camera()
+                elif command == "start_lidar":
+                    self.spawn_lidar_sensor()
+                elif command == "clear_traffic":
                     self.traffic_module.destroy()
                 elif command == "stop":
                     self.stop()
@@ -151,7 +121,6 @@ class CarlaSimulationManager:
             print(f"Average execution speed: {real_fps:.2f} real-time frames per second.\n")
             
             self.is_recording = False
-           
 
     def tick(self):
         self.process_commands()
@@ -160,30 +129,11 @@ class CarlaSimulationManager:
         if self.is_recording:
             self.tick_count += 1
         
-        # Only poll pygame events if the video system is currently active
-        if pygame.display.get_init():
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.command_queue.put("exit")
-        
-        synced_data = self.data_module.process_data()
-        
-        if self.show_display and synced_data:
-            if self.display_manager is None:
-                self.display_manager = DisplayManager(self.data_module.active_modalities)
-            self.display_manager.render(synced_data)
-
-        # if self.tick_count % 20 == 0 and self.tick_count > 0:
-        #     print(f"Tick {self.tick_count}: Processed {self.tick_count * tick_duration:.2f} seconds of simulation time.")
+        self.data_module.process_data()
 
     def stop(self):
         self.data_module.destroy()
         self.ego_spawned = False
-        
-        if self.display_manager:
-            self.display_manager.destroy()
-            self.display_manager = None
-        self.show_display = False
         
         if self.is_recording:
             self._print_performance_metrics()
@@ -192,7 +142,6 @@ class CarlaSimulationManager:
 
     def destroy(self):
         self.running = False
-        
         self._print_performance_metrics()
             
         self.data_module.destroy()
@@ -203,9 +152,6 @@ class CarlaSimulationManager:
         self.world.apply_settings(self.original_settings)
         print("Simulation terminated. Cleaned up actors.")
 
-        if self.display_manager:
-            self.display_manager.destroy()
-
 class SimulationCLI(cmd.Cmd):
     intro = 'Type help or ? to list commands.\n'
     prompt = '(carla-cli) '
@@ -214,34 +160,28 @@ class SimulationCLI(cmd.Cmd):
         super().__init__()
         self.manager = manager
 
-    def parse_args(self, arg):
-        """Helper to extract 'show' and 'bbox' arguments."""
-        args = arg.lower().split()
-        return {"show": "show" in args, "bbox": "bbox" in args}
-
     def do_start_sem(self, arg):
-        """Spawn ego vehicle and start semantic data collection. Usage: start_sem [show] [bbox]"""
-        self.manager.command_queue.put(("start_sem", self.parse_args(arg)))
+        """Spawn ego vehicle and start semantic data collection with automatic bounding boxes."""
+        self.manager.command_queue.put("start_sem")
 
     def do_start_rgb(self, arg):
-        """Spawn ego vehicle and start rgb data collection. Usage: start_rgb [show] [bbox]"""
-        self.manager.command_queue.put(("start_rgb", self.parse_args(arg)))
+        """Spawn ego vehicle and start rgb data collection with automatic bounding boxes."""
+        self.manager.command_queue.put("start_rgb")
 
     def do_start_ins(self, arg):
-        """Spawn ego vehicle and start instance segmentation data collection. Usage: start_ins [show] [bbox]"""
-        self.manager.command_queue.put(("start_ins", self.parse_args(arg)))
+        """Spawn ego vehicle and start instance segmentation data collection with automatic bounding boxes."""
+        self.manager.command_queue.put("start_ins")
 
     def do_start_lidar(self, arg):
-        """Spawn ego vehicle and start LiDAR data collection. Usage: start_lidar [bbox]"""
-        self.manager.command_queue.put(("start_lidar", self.parse_args(arg)))
+        """Spawn ego vehicle and start LiDAR data collection with automatic bounding boxes."""
+        self.manager.command_queue.put("start_lidar")
 
     def do_start_all(self, arg):
-        """Spawn ego vehicle and start all data collection. Usage: start_all [bbox]"""
-        options = self.parse_args(arg)
-        self.manager.command_queue.put(("start_sem", options))
-        self.manager.command_queue.put(("start_rgb", options))
-        self.manager.command_queue.put(("start_ins", options))
-        self.manager.command_queue.put(("start_lidar", options))
+        """Spawn ego vehicle and start all data collection modalities with automatic bounding boxes."""
+        self.manager.command_queue.put("start_sem")
+        self.manager.command_queue.put("start_rgb")
+        self.manager.command_queue.put("start_ins")
+        self.manager.command_queue.put("start_lidar")
 
     def do_spawn_traffic(self, arg):
         """Spawn background traffic. Usage: spawn_traffic [vehicles] [walkers] (e.g., spawn_traffic 50 30)"""
@@ -261,9 +201,9 @@ class SimulationCLI(cmd.Cmd):
         """Set simulated time of day. Usage: set_time [hour] [minute]"""
         args = arg.split()
         try:
-            hour = int(args[0]) if len(args)>0 else 12
-            minute = int(args[1]) if len(args)>1 else 0
-            self.manager.command_queue.put(("set_weather", {"hour":hour, "minute":minute}))
+            hour = int(args[0]) if len(args) > 0 else 12
+            minute = int(args[1]) if len(args) > 1 else 0
+            self.manager.command_queue.put(("set_weather", {"hour": hour, "minute": minute}))
         except ValueError:
             print("Error: Arguments must be integers. Example: set_time 04 20")
 
@@ -281,8 +221,6 @@ def cli_thread(manager):
     cli.cmdloop()
 
 def main():
-    pygame.init()
-    
     manager = CarlaSimulationManager()
     
     # Start the CLI in a parallel daemon thread
@@ -301,11 +239,9 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
-        # GUARANTEE cleanup runs even if the loop crashed or Ctrl+C was pressed
         if manager.running:
             manager.destroy()
             
-        pygame.quit()
         sys.exit()
 
 if __name__ == '__main__':
